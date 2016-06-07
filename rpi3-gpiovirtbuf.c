@@ -160,8 +160,10 @@ int main(int argc, char *argv[])
 	unsigned *addr = NULL;
 	unsigned off;
 	int val;
+	uint32_t gpio_set[2];
+	int i;
 
-	if (argc != 2) {
+	if (argc < 2) {
 		fprintf(stderr, "error: Invalid the number of the arguments\n");
 		usage(argv[0]);
 		exit(EXIT_FAILURE);
@@ -172,11 +174,31 @@ int main(int argc, char *argv[])
 
 	mb = rpi_firmware_open();
 
-	rpi_firmware_property(mb, RPI_FIRMWARE_FRAMEBUFFER_GET_GPIOVIRTBUF, &gvp, sizeof(gvp));
-	addr = mapmem_cpu(BUS_TO_PHYS(gvp), 4096);
-	gpio_set(addr, off, val);
-	unmapmem_cpu(addr, 4096);
-	addr = NULL;
+	//rpi_firmware_property(mb, RPI_FIRMWARE_FRAMEBUFFER_GET_GPIOVIRTBUF, &gvp, sizeof(gvp));
+	if(argc == 3) {
+		gpio_set[0] = val;
+		gpio_set[1] = atoi(argv[2]);
+		fprintf(stderr, "Set state of %d to %d\n", val, atoi(argv[2]));
+		rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+	} else {
+		for (i=0; i<10; i++) {
+			gpio_set[0] = val;
+			gpio_set[1] = 1;
+			fprintf(stderr, "On\n");
+			rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+			sleep(1);
+			fprintf(stderr, "Off\n");
+			gpio_set[0] = val;
+			gpio_set[1] = 0;
+			rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+			sleep(1);
+		}
+	}
+
+//	addr = mapmem_cpu(BUS_TO_PHYS(gvp), 4096);
+//	gpio_set(addr, off, val);
+//	unmapmem_cpu(addr, 4096);
+//	addr = NULL;
 
 	rpi_firmware_close(mb);
 	mb = -1;
