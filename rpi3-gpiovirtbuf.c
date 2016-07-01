@@ -30,9 +30,8 @@
 
 static void usage(const char *progname)
 {
-	fprintf(stderr, "Usage: %s NUM\n", progname);
-	fprintf(stderr, "Set NUM to 0 to turn off the activity LED and non-0 to turn it on.\n");
-	fprintf(stderr, "This program requires root privilege to map memory.\n");
+	fprintf(stderr, "Usage: %s [s|g] NUM [STATE]\n", progname);
+	fprintf(stderr, "Set or get the GPIO state of GPIO NUM using the GPU mailbox service\n");
 }
 
 static int rpi_firmware_open()
@@ -103,38 +102,39 @@ void gpio_set(int mb, int gpio, int state)
 	return;
 }
 
+int gpio_get(int mb, int gpio)
+{
+	uint32_t gpio_set[2];
+	gpio_set[0] = gpio;
+	rpi_firmware_property(mb, RPI_FIRMWARE_GET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+	return gpio_set[1];
+}
+
 int main(int argc, char *argv[])
 {
 	int mb = -1;
-	uint32_t gvp = NULL;
-	unsigned *addr = NULL;
-	unsigned off;
 	int val;
-	int i;
 
-	if (argc < 2) {
+	if (argc < 3 ||
+	    ((argv[1][0]=='s' || argv[1][0]=='S') && argc < 4)) {
 		fprintf(stderr, "error: Invalid the number of the arguments\n");
 		usage(argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
-	off = 0; /* 0 is for the activity LED. */
-	val = atoi(argv[1]);
+	val = atoi(argv[2]);
 
 	mb = rpi_firmware_open();
 
 	if(argc == 3) {
-		fprintf(stderr, "Set state of %d to %d\n", val, atoi(argv[2]));
+		//Must be get, otherwise we wouldn't have got past the argc check
+		int state = gpio_get(mb, val);
+		fprintf(stderr, "Get state of %d as %d\n", val, state);
+	}
+	else
+	{
 		gpio_set(mb, val, atoi(argv[2]));
-	} else {
-		for (i=0; i<10; i++) {
-			fprintf(stderr, "On\n");
-			gpio_set(mb, val, 1);
-			sleep(1);
-			fprintf(stderr, "Off\n");
-			gpio_set(mb, val, 0);
-			sleep(1);
-		}
+		fprintf(stderr, "Set state of %d to %d\n", val, atoi(argv[3]));
 	}
 
 	rpi_firmware_close(mb);
