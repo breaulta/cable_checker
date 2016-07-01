@@ -94,63 +94,13 @@ static void rpi_firmware_property(const int fd, const uint32_t tag, void *tag_da
 	memcpy(tag_data, p + i, buf_size);
 }
 
-static void gpio_set(uint32_t *addr, const unsigned off, const int val)
+void gpio_set(int mb, int gpio, int state)
 {
-	uint16_t enables, disables;
-	int16_t diff;
-	_Bool lit;
-
-	enables = addr[off] >> 16;
-	disables = addr[off] >> 0;
-	diff = (int16_t)(enables - disables);
-	lit = (diff > 0);
-	if ((val && lit) || (!val && !lit))
-		return;
-	if (val)
-		enables ++;
-	else
-		disables ++;
-	addr[off] = (enables << 16) | (disables << 0);
-}
-
-/* Note: base should be pagesize-aligned. */
-static void* mapmem_cpu(const off_t base, const size_t size)
-{
-	int fd = -1;
-	unsigned *mem = NULL;
-	int reti;
-
-	fd = open(DEV_MEM, O_RDWR);
-	if (fd == -1) {
-		fprintf(stderr, "error: open: %s: %s\n", DEV_MEM, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, base);
-	if (mem == MAP_FAILED) {
-		fprintf(stderr, "error: mmap: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	reti = close(fd);
-	if (reti == -1) {
-		fprintf(stderr, "error: close: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	return mem;
-}
-
-static void unmapmem_cpu(void *addr, const size_t size)
-{
-	int reti;
-
-	reti = munmap(addr, size);
-
-	if (reti == -1) {
-		fprintf(stderr, "error: munmap: %s\n", strerror(errno));
-		exit(EXIT_FAILURE);
-	}
+	uint32_t gpio_set[2];
+	gpio_set[0] = gpio;
+	gpio_set[1] = state ? 1 : 0;
+	rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+	return;
 }
 
 int main(int argc, char *argv[])
@@ -160,7 +110,6 @@ int main(int argc, char *argv[])
 	unsigned *addr = NULL;
 	unsigned off;
 	int val;
-	uint32_t gpio_set[2];
 	int i;
 
 	if (argc < 2) {
@@ -174,31 +123,19 @@ int main(int argc, char *argv[])
 
 	mb = rpi_firmware_open();
 
-	//rpi_firmware_property(mb, RPI_FIRMWARE_FRAMEBUFFER_GET_GPIOVIRTBUF, &gvp, sizeof(gvp));
 	if(argc == 3) {
-		gpio_set[0] = val;
-		gpio_set[1] = atoi(argv[2]);
 		fprintf(stderr, "Set state of %d to %d\n", val, atoi(argv[2]));
-		rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+		gpio_set(mb, val, atoi(argv[2]));
 	} else {
 		for (i=0; i<10; i++) {
-			gpio_set[0] = val;
-			gpio_set[1] = 1;
 			fprintf(stderr, "On\n");
-			rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+			gpio_set(mb, val, 1);
 			sleep(1);
 			fprintf(stderr, "Off\n");
-			gpio_set[0] = val;
-			gpio_set[1] = 0;
-			rpi_firmware_property(mb, RPI_FIRMWARE_SET_GPIO_STATE, gpio_set, sizeof(gpio_set));
+			gpio_set(mb, val, 0);
 			sleep(1);
 		}
 	}
-
-//	addr = mapmem_cpu(BUS_TO_PHYS(gvp), 4096);
-//	gpio_set(addr, off, val);
-//	unmapmem_cpu(addr, 4096);
-//	addr = NULL;
 
 	rpi_firmware_close(mb);
 	mb = -1;
