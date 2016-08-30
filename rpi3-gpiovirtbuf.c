@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 	}
 	else
 	{
-		gpio_set(mb, val, atoi(argv[2]));
+		gpio_set(mb, val, atoi(argv[3]));
 		fprintf(stderr, "Set state of %d to %d\n", val, atoi(argv[3]));
 	}
 
